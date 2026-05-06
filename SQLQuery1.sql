@@ -2,14 +2,6 @@
 	USE master;
 	GO
 
-	-- 0. Видаляємо стару базу
-	IF EXISTS (SELECT * FROM sys.databases WHERE name = 'MyPersonalLibrary')
-	BEGIN
-	ALTER DATABASE MyPersonalLibrary SET SINGLE_USER WITH ROLLBACK IMMEDIATE;
-	DROP DATABASE MyPersonalLibrary;
-	END
-	GO
-
 	-- 1. Створюємо базу 
 	CREATE DATABASE MyPersonalLibrary;
 	GO
@@ -56,7 +48,7 @@
 	BookID INT PRIMARY KEY DEFAULT (NEXT VALUE FOR BookSequence),
 	Title NVARCHAR(255) NOT NULL,
 	Price DECIMAL(10, 2),
-	PurchaseDate DATE,             -- ДАТА ПРИДБАННЯ
+	PurchaseDate DATE,             
 	Pages INT,
 	BookFormat NVARCHAR(50) DEFAULT N'physical' 
 	CONSTRAINT CHK_Format CHECK (BookFormat IN (N'physical', N'Digital (audio)', N'E-book', N'mix')),
@@ -119,7 +111,7 @@
 	GO
 
 
-	-- Розширене представлення з усіма наявними даними (без дублювання рядків)
+	-- Розширене представлення 
 CREATE OR ALTER VIEW v_FullLibraryReport AS
 SELECT 
     b.BookID,
@@ -175,154 +167,3 @@ FROM Books b
 LEFT JOIN Publishers p ON b.PubID = p.PubID;
 GO
 
-
--- Створюємо універсальну процедуру для видалення будь-якої книги за назвою
-CREATE OR ALTER PROCEDURE sp_DeleteBookByTitle
-    @Title NVARCHAR(255)
-AS
-BEGIN
-    SET NOCOUNT ON;
-    DECLARE @BID INT;
-
-    -- Знаходимо ID книги
-    SELECT @BID = BookID FROM Books WHERE Title = @Title;
-
-    IF @BID IS NOT NULL
-    BEGIN
-        -- Видаляємо всі зв'язки автоматично
-        DELETE FROM BookAuthors WHERE BookID = @BID;
-        DELETE FROM BookGenres  WHERE BookID = @BID;
-        DELETE FROM BookTags    WHERE BookID = @BID;
-        
-        -- Видаляємо саму книгу
-        DELETE FROM Books WHERE BookID = @BID;
-
-        PRINT N'Книгу "' + @Title + N'" видалено успішно.';
-    END
-    ELSE
-    BEGIN
-        PRINT N'Помилка: Книгу з назвою "' + @Title + N'" не знайдено.';
-    END
-END;
-GO
-
-
--- СТВОРЮЄМО ПОВНУ (Для всіх полів)
-CREATE OR ALTER PROCEDURE sp_AddFullBook
-    @Title NVARCHAR(255),
-    @Price DECIMAL(10,2) = NULL,
-    @PurchaseDate DATE = NULL,
-    @Pages INT = NULL,
-    @Format NVARCHAR(50) = N'physical',
-    @Year INT = NULL,
-    @Cycle NVARCHAR(255) = NULL,
-    @Source NVARCHAR(100) = NULL,
-    @Status NVARCHAR(50) = N'нечитана',
-    @ReadDate DATE = NULL,
-    @Rating DECIMAL(3,1) = NULL,
-    @Publisher NVARCHAR(255) = NULL,
-    @SalePrice DECIMAL(10, 2) = NULL,      -- ЦІНА ПРОДАЖУ
-    @IsInLibrary BIT = 1,                 -- В БІБЛІОТЕЦІ (0 або 1)
-    @PreviousBookTitle NVARCHAR(255) = NULL, -- ДЛЯ ІЄРАРХІЇ (Назва попередньої книги)
-    @Note NVARCHAR(MAX) = NULL,
-    @Authors NVARCHAR(MAX) = NULL, -- Список імен через кому
-    @Genres NVARCHAR(MAX) = NULL,  -- Список через кому
-    @Tags NVARCHAR(MAX) = NULL     -- Список через кому
-AS
-BEGIN
-    SET NOCOUNT ON;
-    DECLARE @BID INT, @PID INT, @PrevBID INT;
-
-    -- А. Обробка Видавництва
-    IF @Publisher IS NOT NULL
-    BEGIN
-        IF NOT EXISTS (SELECT 1 FROM Publishers WHERE PubName = @Publisher)
-            INSERT INTO Publishers (PubName) VALUES (@Publisher);
-        SELECT @PID = PubID FROM Publishers WHERE PubName = @Publisher;
-    END
-
-    -- Б. Обробка Ієрархії (знаходимо ID попередньої книги за назвою)
-    IF @PreviousBookTitle IS NOT NULL
-        SELECT @PrevBID = BookID FROM Books WHERE Title = @PreviousBookTitle;
-
-    -- В. Вставка або Оновлення книги
-    IF NOT EXISTS (SELECT 1 FROM Books WHERE Title = @Title)
-    BEGIN
-        INSERT INTO Books (
-            Title, Price, PurchaseDate, Pages, BookFormat, FirstPubYear, 
-            CycleName, SourceFrom, BookStatus, ReadDate, Rating, 
-            PubID, SalePrice, IsInLibrary, PreviousBookID, Note
-        )
-        VALUES (
-            @Title, @Price, @PurchaseDate, @Pages, @Format, @Year, 
-            @Cycle, @Source, @Status, @ReadDate, @Rating, 
-            @PID, @SalePrice, @IsInLibrary, @PrevBID, @Note
-        );
-    END
-    ELSE
-    BEGIN
-        UPDATE Books SET 
-            Price = @Price, 
-            PurchaseDate = @PurchaseDate, 
-            Pages = @Pages, 
-            BookFormat = @Format, 
-            FirstPubYear = @Year, 
-            CycleName = @Cycle, 
-            SourceFrom = @Source, 
-            BookStatus = @Status, 
-            ReadDate = @ReadDate, 
-            Rating = @Rating, 
-            PubID = @PID, 
-            SalePrice = @SalePrice, 
-            IsInLibrary = @IsInLibrary, 
-            PreviousBookID = @PrevBID, 
-            Note = @Note,
-            ULC = SUSER_NAME(),
-            DLC = GETDATE()
-        WHERE Title = @Title;
-    END
-
-    SELECT @BID = BookID FROM Books WHERE Title = @Title;
-
-    -- Г. Обробка АВТОРІВ
-    IF @Authors IS NOT NULL
-    BEGIN
-        INSERT INTO Authors (FullName)
-        SELECT DISTINCT TRIM(value) FROM STRING_SPLIT(@Authors, ',')
-        WHERE TRIM(value) NOT IN (SELECT FullName FROM Authors);
-
-        INSERT INTO BookAuthors (BookID, AuthorID)
-        SELECT @BID, a.AuthorID FROM Authors a
-        WHERE a.FullName IN (SELECT DISTINCT TRIM(value) FROM STRING_SPLIT(@Authors, ','))
-        AND NOT EXISTS (SELECT 1 FROM BookAuthors WHERE BookID = @BID AND AuthorID = a.AuthorID);
-    END
-
-    -- Д. Обробка ЖАНРІВ
-    IF @Genres IS NOT NULL
-    BEGIN
-        INSERT INTO Genres (GenreName)
-        SELECT DISTINCT TRIM(value) FROM STRING_SPLIT(@Genres, ',')
-        WHERE TRIM(value) NOT IN (SELECT GenreName FROM Genres);
-
-        INSERT INTO BookGenres (BookID, GenreID)
-        SELECT @BID, g.GenreID FROM Genres g
-        WHERE g.GenreName IN (SELECT DISTINCT TRIM(value) FROM STRING_SPLIT(@Genres, ','))
-        AND NOT EXISTS (SELECT 1 FROM BookGenres WHERE BookID = @BID AND GenreID = g.GenreID);
-    END
-
-    -- Е. Обробка ТЕГІВ
-    IF @Tags IS NOT NULL
-    BEGIN
-        INSERT INTO Tags (TagName)
-        SELECT DISTINCT TRIM(value) FROM STRING_SPLIT(@Tags, ',')
-        WHERE TRIM(value) NOT IN (SELECT TagName FROM Tags);
-
-        INSERT INTO BookTags (BookID, TagID)
-        SELECT @BID, t.TagID FROM Tags t
-        WHERE t.TagName IN (SELECT DISTINCT TRIM(value) FROM STRING_SPLIT(@Tags, ','))
-        AND NOT EXISTS (SELECT 1 FROM BookTags WHERE BookID = @BID AND TagID = t.TagID);
-    END
-
-    PRINT N'Книгу "' + @Title + N'" оновлено.';
-END;
-GO
