@@ -1,14 +1,6 @@
 USE MyPersonalLibrary;
 GO
 
--- Очищуємо таблиці перед повторним наповненням, щоб не було дублікатів
-DELETE FROM BookTags;
-DELETE FROM BookAuthors;
-DELETE FROM Books;
-DELETE FROM Authors;
-DELETE FROM Publishers;
-GO
-
 -- 1. НАПОВНЕННЯ ДОВІДНИКІВ
 INSERT INTO Authors (FullName) VALUES 
 (N'Брендон Сандерсон'), 
@@ -34,7 +26,7 @@ VALUES
 
 -- Правда 
 (N'Правда', 456, NULL, N'physical', 2000, NULL, 10.0, N'прочитана', 
- '2024-05-21', N'Дискосвіт🐢', (SELECT PubID FROM Publishers WHERE PubName = N'Видавництво Старого Лева'), 1),
+ '2024-05-21', N'Дискосвіт', (SELECT PubID FROM Publishers WHERE PubName = N'Видавництво Старого Лева'), 1),
 
 -- Морт 
 (N'Морт', 304, 230.00, N'physical', 1987, N'Смерть (5)', 10.0, N'прочитана', 
