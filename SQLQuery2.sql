@@ -198,6 +198,11 @@ AND NOT EXISTS (SELECT 1 FROM BookTags WHERE BookID = b.BookID AND TagID = t.Tag
 
 GO
 
+ -- Встановлюємо, що "Шовкопряд" йде після "Кувала зозуля"
+UPDATE Books 
+SET PreviousBookID = (SELECT BookID FROM Books WHERE Title = N'Кувала зозуля')
+WHERE Title = N'Шовкопряд';
+
 
 -- ПЕРЕВІРКА
 SELECT * FROM v_BookRatings;
