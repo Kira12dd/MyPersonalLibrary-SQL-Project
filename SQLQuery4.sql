@@ -76,8 +76,8 @@ BEGIN
 END;
 GO
 
--- Оновимо цінність для всіх книг, виданих з 2000 по 2026 рік
+
 EXEC sp_ProcessBooksByPeriod 2000, 2026;
 
--- Дивимось результат
+
 SELECT Title, Note FROM Books;
