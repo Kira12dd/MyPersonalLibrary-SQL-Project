@@ -9,7 +9,7 @@ BEGIN
     DECLARE @Rating DECIMAL(3,1), @Pages INT, @Status NVARCHAR(50), @InLib BIT;
     DECLARE @Value DECIMAL(5,2);
     DECLARE @NoteContent NVARCHAR(MAX);
-    DECLARE @ValueMarker NVARCHAR(50) = N' [Цінність: %]'; -- Маркер для пошуку
+    DECLARE @Pos INT;
 
     -- Отримуємо вхідні дані для формули
     SELECT 
@@ -25,16 +25,16 @@ BEGIN
     IF (@Status = N'прочитана') SET @Value = @Value + 3;
     IF (@InLib = 1) SET @Value = @Value + 2;
 
-    -- ОЧИЩЕННЯ Note від старої цінності (якщо вона там є)
-    -- Видаляємо все, що знаходиться між квадратними дужками " [Цінність: ...]"
-    IF @NoteContent LIKE N'% [Цінність: %]%'
+-- ЛОГІКА ОЧИЩЕННЯ:
+    -- Знаходимо позицію маркера. Якщо він є, обрізаємо все, що після нього.
+    -- Один LEFT видаляє маркер і всі можливі дублікати за ним.
+    SET @Pos = CHARINDEX(N'[Цінність:', @NoteContent);
+    IF @Pos > 0
     BEGIN
-        -- Знаходимо початок маркера і обрізаємо Note до нього
-        DECLARE @Pos INT = CHARINDEX(N' [Цінність:', @NoteContent);
         SET @NoteContent = RTRIM(LEFT(@NoteContent, @Pos - 1));
     END
 
-    -- ЗАПИС нового результату в Note
+    -- ЗАПИС результату в Note
     UPDATE Books
     SET Note = CASE 
         WHEN LEN(@NoteContent) > 0 THEN @NoteContent + N' [Цінність: ' + CAST(@Value AS NVARCHAR) + N']'
@@ -46,8 +46,8 @@ BEGIN
 END;
 GO
 
--- 2. Головна процедура (виклик для всіх за вказаний період)
-CREATE OR ALTER PROCEDURE sp_ProcessBooksByPeriod
+-- 2. Процедура розрахунку цінності (виклик для всіх за вказаний період)
+CREATE OR ALTER PROCEDURE sp_BooksValueByPeriod
     @YearFrom INT,
     @YearTo INT
 AS
@@ -77,7 +77,42 @@ END;
 GO
 
 
-EXEC sp_ProcessBooksByPeriod 2000, 2026;
+--3. Процедура розрахунку цінності для ВСІХ книг, що існують у базі.
+CREATE OR ALTER PROCEDURE sp_CalculateAllBooksValue
+AS
+BEGIN
+    SET NOCOUNT ON;
+    DECLARE @BID INT;
 
+    -- Курсор для вибору абсолютно всіх книг
+    DECLARE all_books_cursor CURSOR FOR 
+    SELECT BookID FROM Books;
 
+    OPEN all_books_cursor;
+    FETCH NEXT FROM all_books_cursor INTO @BID;
+
+    WHILE @@FETCH_STATUS = 0
+    BEGIN
+        EXEC sp_CalculateBookValue @BID;
+        FETCH NEXT FROM all_books_cursor INTO @BID;
+    END;
+
+    CLOSE all_books_cursor;
+    DEALLOCATE all_books_cursor;
+    
+    PRINT N'--- ЦІННІСТЬ ДЛЯ ВСІЄЇ БІБЛІОТЕКИ РОЗРАХОВАНА ---';
+END;
+GO
+
+---- Оновимо цінність для всіх книг, виданих з 2000 по 2026 рік
+--EXEC sp_BooksValueByPeriod 2000, 2026;
+--GO
+
+EXEC sp_CalculateAllBooksValue;
+GO
+
+-- Дивимось результат
 SELECT Title, Note FROM Books;
+
+--SELECT Title, Note, FirstPubYear FROM Books;
+
