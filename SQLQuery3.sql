@@ -118,12 +118,6 @@ GO
 -- 9. Ієрархічний SELECT запит (Recursive CTE)
 -- ПРИЗНАЧЕННЯ: Вивести ланцюжок серії книг (що за чим читати).
 ---------------------------------------------------------------------------
-SELECT 
-    b.Title AS CurrentBook,
-    pb.Title AS PreviousBook
-FROM Books b
-LEFT JOIN Books pb 
-    ON b.PreviousBookID = pb.BookID;
 
 WITH BookSeries AS (
     -- Якірна частина: вибираємо перші книги у серіях (або поодинокі книги)
