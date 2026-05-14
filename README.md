@@ -3,7 +3,7 @@
 
 Структура файлів
 
-SQLQuery1.sql — створення таблиць, зв'язків (Foreign Keys) та обмежень (Constraints), представлення (v_FullLibraryReport, v_MyShelf, v_FullLibraryReport).
+SQLQuery1.sql — створення таблиць, зв'язків (Foreign Keys) та обмежень (Constraints), представлення (v_FullLibraryReport, v_MyShelf, v_BookRatings ).
 
 SQLQuery2.sql — приклади заповнення бази книгами.
 
