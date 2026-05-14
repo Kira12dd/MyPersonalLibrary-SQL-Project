@@ -75,7 +75,8 @@ GO
 EXECUTE AS USER = 'Data_Operator_User';
 -- Навіть після REVOKE цей запит має працювати (завдяки ролі Library_Manager_Role)
 SELECT * FROM Books; 
-REVERT; -- Повертаємося до прав адміна
+REVERT;  -- Повертаємося до прав адміна
+GO
 
 -- Пункт 7: Надамо гостю персональне право на одну в'юшку
 GRANT SELECT ON v_MyShelf TO Reader_Guest_User;
@@ -96,6 +97,7 @@ SELECT * FROM v_MyShelf;
 SELECT * FROM v_BookRatings; 
 REVERT;
 
+
 -- 8. Видалення (Пункт 8)
 -- DROP USER IF EXISTS Data_Operator_User;
 -- DROP ROLE IF EXISTS Library_Viewer_Role;
@@ -110,13 +112,6 @@ GO
 --FROM sys.database_role_members AS DRM  
 --JOIN sys.database_principals AS DP1 ON DRM.role_principal_id = DP1.principal_id  
 --JOIN sys.database_principals AS DP2 ON DRM.member_principal_id = DP2.principal_id;
-
-
-
-/*
-презентація до 10 слайдів
-
-*/
 
 
 
